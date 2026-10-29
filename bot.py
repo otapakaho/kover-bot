@@ -120,7 +120,6 @@ async def is_subscribed(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> boo
         return member.status in ["member", "administrator", "creator", "restricted"]
     except Exception as e:
         error_text = str(e)
-        # Если Telegram не знает такого пользователя — значит, он не запускал бота
         if "User not found" in error_text:
             print(f"Пользователь {user_id} не запускал бота — нужен /start")
             return False
@@ -137,9 +136,7 @@ def subscription_keyboard():
 
 
 async def require_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """
-    Возвращает True, если подписан. Если нет — отправляет сообщение и False.
-    """
+    """Возвращает True, если подписан. Если нет — отправляет сообщение и False."""
     user_id = update.effective_user.id
     if await is_subscribed(context, user_id):
         return True
@@ -323,7 +320,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data or ""
 
     # Кнопка «Я подписался»
-     if data == "check_sub":
+    if data == "check_sub":
         user_id = query.from_user.id
         try:
             member = await context.bot.get_chat_member(CHANNEL_USERNAME, user_id)
