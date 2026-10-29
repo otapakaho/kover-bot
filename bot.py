@@ -1,6 +1,7 @@
 import os
 import random
 import logging
+from datetime import datetime, timezone, timedelta
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -18,11 +19,11 @@ from telegram.ext import (
 )
 
 # ==== НАСТРОЙКИ ====
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8880712933:AAHMWKpLPPmUH6Kekfvn3s4DZa6J0GoHTWM")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "ВСТАВЬ_СЮДА_ТОКЕН_ОТ_@BotFather")
 
 # ==== НАСТРОЙКИ ПОДПИСКИ ====
-CHANNEL_USERNAME = "@chillaviaa"          # замени на username канала, с @
-CHANNEL_URL = "https://t.me/chillaviaa"   # замени на ссылку на канал
+CHANNEL_USERNAME = "@твой_канал"          # замени на username канала, с @
+CHANNEL_URL = "https://t.me/твой_канал"   # замени на ссылку на канал
 
 # ==== БАЗА АЭРОПОРТОВ ====
 AIRPORTS = {
@@ -173,6 +174,21 @@ def main_menu_keyboard():
 
 
 # ==== ЛОГИКА РУЛЕТКИ ====
+def time_multiplier() -> tuple[float, str]:
+    """Возвращает (множитель, название периода) по текущему времени МСК."""
+    msk = timezone(timedelta(hours=3))
+    hour = datetime.now(msk).hour
+
+    if 0 <= hour < 6:
+        return 1.25, "🌙 Ночь"
+    elif 6 <= hour < 12:
+        return 1.10, "🌅 Утро"
+    elif 12 <= hour < 18:
+        return 0.85, "☀️ День"
+    else:
+        return 1.15, "🌆 Вечер"
+
+
 def roll_verdict(base_cover_chance: float):
     cover_chance = base_cover_chance + random.uniform(-0.10, 0.10)
     cover_chance = max(0.001, min(0.99, cover_chance))
@@ -206,7 +222,9 @@ def find_airport_by_code(query: str):
 
 def build_roll_text(code: str):
     info = AIRPORTS[code]
-    fly, cover, outcome = roll_verdict(info["chance"])
+    mult, period = time_multiplier()
+    adjusted_chance = min(0.99, info["chance"] * mult)
+    fly, cover, outcome = roll_verdict(adjusted_chance)
 
     if outcome == "fly":
         phrase = random.choice(FLY_PHRASES)
@@ -218,7 +236,8 @@ def build_roll_text(code: str):
     title = info["name"]
 
     text = (
-        f"🎰 *Рулетка: {title}* (`{code}` / `{info.get('icao', '—')}`)\n\n"
+        f"🎰 *Рулетка: {title}* (`{code}` / `{info.get('icao', '—')}`)\n"
+        f"{period} · множитель ×{mult}\n\n"
         f"{phrase}\n\n"
         f"🛫 Шанс улёта: *{fly}%*\n`{bar(fly)}`\n\n"
         f"🟥 Шанс «Ковра»: *{cover}%*\n`{bar(cover)}`\n\n"
@@ -241,10 +260,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"В базе: *{len(AIRPORTS)}* аэропортов России.\n"
         "Шансы рассчитаны по реальной статистике закрытий "
         "(skymoments.ru, за 90 дней).\n\n"
-        "Это *шутка*, но цифры настоящие.\n\n"
+        "Это *шутка*, но цифры настоящие.\n"
+        "Ночью шанс «Ковра» выше, днём — ниже.\n\n"
         "Команды:\n"
         "• /roll SVO или /roll UUEE — крутить по IATA или ICAO\n"
-        "• /find Москва — найти по городу\n"
+        "• /find Москва — найти по городу, IATA или ICAO\n"
         "• /random — случайный аэропорт\n"
         "• /top — топ-10 самых «ковровых»\n"
         "• /bet ковёр — сделать ставку\n\n"
@@ -394,7 +414,9 @@ async def bet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         code = random.choice(list(AIRPORTS.keys()))
 
     info = AIRPORTS[code]
-    fly, cover, outcome = roll_verdict(info["chance"])
+    mult, period = time_multiplier()
+    adjusted_chance = min(0.99, info["chance"] * mult)
+    fly, cover, outcome = roll_verdict(adjusted_chance)
 
     if outcome == "fly":
         actual = "fly"
@@ -417,7 +439,8 @@ async def bet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = (
         f"🎲 *Ставка:* {bet_name}\n"
-        f"📍 *Аэропорт:* {info['name']} (`{code}`)\n\n"
+        f"📍 *Аэропорт:* {info['name']} (`{code}`)\n"
+        f"{period} · множитель ×{mult}\n\n"
         f"Крутим...\n\n"
         f"{result_text}\n"
         f"🛫 Шанс улёта: *{fly}%* | 🟥 Шанс «Ковра»: *{cover}%*\n\n"
@@ -459,7 +482,8 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "🔍 Найти":
         await update.message.reply_text(
-            "Напиши город или часть названия, например: `Москва`",
+            "Напиши код IATA, ICAO, город или часть названия.\n"
+            "Например: `SVO`, `UUEE` или `Москва`",
             parse_mode="Markdown",
             reply_markup=main_menu_keyboard(),
         )
@@ -536,7 +560,9 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_bet = data.split(":", 1)[1]
         code = random.choice(list(AIRPORTS.keys()))
         info = AIRPORTS[code]
-        fly, cover, outcome = roll_verdict(info["chance"])
+        mult, period = time_multiplier()
+        adjusted_chance = min(0.99, info["chance"] * mult)
+        fly, cover, outcome = roll_verdict(adjusted_chance)
 
         if outcome == "fly":
             actual = "fly"
@@ -558,7 +584,8 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bet_name = "«Ковёр»" if user_bet == "cover" else "«Улёт»"
         text = (
             f"🎲 *Ставка:* {bet_name}\n"
-            f"📍 *Аэропорт:* {info['name']} (`{code}`)\n\n"
+            f"📍 *Аэропорт:* {info['name']} (`{code}`)\n"
+            f"{period} · множитель ×{mult}\n\n"
             f"{result_text}\n"
             f"🛫 Шанс улёта: *{fly}%* | 🟥 Шанс «Ковра»: *{cover}%*\n\n"
             f"{verdict}"
