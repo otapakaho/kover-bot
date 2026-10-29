@@ -119,6 +119,11 @@ async def is_subscribed(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> boo
         member = await context.bot.get_chat_member(CHANNEL_USERNAME, user_id)
         return member.status in ["member", "administrator", "creator", "restricted"]
     except Exception as e:
+        error_text = str(e)
+        # Если Telegram не знает такого пользователя — значит, он не запускал бота
+        if "User not found" in error_text:
+            print(f"Пользователь {user_id} не запускал бота — нужен /start")
+            return False
         print(f"Ошибка проверки подписки: {e}")
         return False
 
@@ -318,9 +323,21 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data or ""
 
     # Кнопка «Я подписался»
-    if data == "check_sub":
+     if data == "check_sub":
         user_id = query.from_user.id
-        if await is_subscribed(context, user_id):
+        try:
+            member = await context.bot.get_chat_member(CHANNEL_USERNAME, user_id)
+            is_member = member.status in ["member", "administrator", "creator", "restricted"]
+        except Exception as e:
+            if "User not found" in str(e):
+                await query.answer(
+                    "Сначала нажми /start в этом боте, а потом проверяй подписку.",
+                    show_alert=True
+                )
+                return
+            is_member = False
+
+        if is_member:
             await query.edit_message_text(
                 "✅ Спасибо за подписку! Теперь можешь крутить рулетку.\n"
                 "Отправь /roll SVO или нажми /random."
