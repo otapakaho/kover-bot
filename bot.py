@@ -261,16 +261,26 @@ async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not context.args:
         await update.message.reply_text(
-            "Напиши город или часть названия, например: `/find Москва`",
+            "Напиши код IATA, ICAO, город или часть названия.\n"
+            "Например: `SVO`, `UUEE` или `Москва`",
             parse_mode="Markdown",
         )
         return
 
-    query = " ".join(context.args).lower()
-    matches = [
-        (code, info) for code, info in AIRPORTS.items()
-        if query in info["name"].lower() or query in info["city"].lower()
-    ]
+    query = " ".join(context.args).strip()
+    query_lower = query.lower()
+    query_upper = query.upper()
+
+    matches = []
+    for code, info in AIRPORTS.items():
+        if query_upper == code:
+            matches.append((code, info))
+            continue
+        if info.get("icao", "").upper() == query_upper:
+            matches.append((code, info))
+            continue
+        if query_lower in info["name"].lower() or query_lower in info["city"].lower():
+            matches.append((code, info))
 
     if not matches:
         await update.message.reply_text(f"🤷 Ничего не нашёл по «{query}».")
