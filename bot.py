@@ -10,16 +10,14 @@ from telegram.ext import (
 )
 
 # ==== НАСТРОЙКИ ====
-# Токен берётся из переменной окружения TELEGRAM_BOT_TOKEN.
-# Для запуска на своём компьютере можно временно вписать токен прямо сюда:
-# BOT_TOKEN = "123456789:ABCdef..."
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8880712933:AAHMWKpLPPmUH6Kekfvn3s4DZa6J0GoHTWM")
 
+# ==== НАСТРОЙКИ ПОДПИСКИ ====
+CHANNEL_USERNAME = "@ЧилАвиа"          # замени на username канала, с @
+CHANNEL_URL = "https://t.me/chillaviaa"   # замени на ссылку на канал
+
 # ==== БАЗА АЭРОПОРТОВ ====
-# chance — базовый шанс "Ковра" (0..1), рассчитан из реальной статистики
-# skymoments.ru (частота × длительность, за 90 дней на 29.10.2026)
 AIRPORTS = {
-    # По формуле: частота × (длительность + 1), нормировка на максимум
     "KLF": {"name": "Калуга (Грабцево)", "city": "Калуга", "chance": 1.00},
     "GDZ": {"name": "Геленджик", "city": "Геленджик", "chance": 0.72},
     "AER": {"name": "Сочи (Адлер)", "city": "Сочи", "chance": 0.52},
@@ -28,12 +26,10 @@ AIRPORTS = {
     "VKO": {"name": "Москва (Внуково)", "city": "Москва", "chance": 0.42},
     "DME": {"name": "Москва (Домодедово)", "city": "Москва", "chance": 0.38},
     "KUF": {"name": "Самара (Курумоч)", "city": "Самара", "chance": 0.33},
-    "SVO": {"name": "Москва (Шереметьево)", "city": "Москва", "chance": 0.20},  # вручную
+    "SVO": {"name": "Москва (Шереметьево)", "city": "Москва", "chance": 0.20},
     "UFA": {"name": "Уфа", "city": "Уфа", "chance": 0.19},
     "SKX": {"name": "Саранск", "city": "Саранск", "chance": 0.16},
     "IJK": {"name": "Ижевск", "city": "Ижевск", "chance": 0.15},
-
-    # Остальные — по частоте за 90 дней (без длительности)
     "ZIA": {"name": "Жуковский (Раменское)", "city": "Жуковский", "chance": 0.36},
     "KZN": {"name": "Казань", "city": "Казань", "chance": 0.35},
     "ULV": {"name": "Ульяновск (Баратаевка)", "city": "Ульяновск", "chance": 0.35},
@@ -116,6 +112,51 @@ UNCERTAIN_PHRASES = [
 ]
 
 
+# ==== ПРОВЕРКА ПОДПИСКИ ====
+async def is_subscribed(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> bool:
+    """Проверяет, подписан ли пользователь на канал."""
+    try:
+        member = await context.bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return member.status in ["member", "administrator", "creator", "restricted"]
+    except Exception as e:
+        print(f"Ошибка проверки подписки: {e}")
+        return False
+
+
+def subscription_keyboard():
+    """Кнопки «Подписаться» и «Я подписался»."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 Подписаться", url=CHANNEL_URL)],
+        [InlineKeyboardButton("✅ Я подписался", callback_data="check_sub")]
+    ])
+
+
+async def require_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Возвращает True, если подписан. Если нет — отправляет сообщение и False.
+    """
+    user_id = update.effective_user.id
+    if await is_subscribed(context, user_id):
+        return True
+
+    msg = (
+        "🔒 *Доступ только для подписчиков!*\n\n"
+        f"Чтобы крутить рулетку, подпишись на канал: {CHANNEL_USERNAME}\n"
+        "После подписки нажми «Я подписался»."
+    )
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
+            msg, parse_mode="Markdown", reply_markup=subscription_keyboard()
+        )
+    else:
+        await update.message.reply_text(
+            msg, parse_mode="Markdown", reply_markup=subscription_keyboard()
+        )
+    return False
+
+
+# ==== ЛОГИКА РУЛЕТКИ ====
 def roll_verdict(base_cover_chance: float):
     cover_chance = base_cover_chance + random.uniform(-0.10, 0.10)
     cover_chance = max(0.001, min(0.99, cover_chance))
@@ -167,6 +208,7 @@ def build_roll_text(code: str):
     return text, keyboard
 
 
+# ==== ОБРАБОТЧИКИ ====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "🎰 *Ковёр-рулетка* 🎰\n\n"
@@ -184,6 +226,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_subscription(update, context):
+        return
+
     if not context.args:
         await update.message.reply_text(
             "Напиши город или часть названия, например: `/find Москва`",
@@ -210,6 +255,9 @@ async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def roll(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_subscription(update, context):
+        return
+
     if not context.args:
         await update.message.reply_text(
             "Укажи код IATA, например: `/roll SVO`\n"
@@ -233,6 +281,9 @@ async def roll(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def random_airport(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_subscription(update, context):
+        return
+
     code = random.choice(list(AIRPORTS.keys()))
     text, keyboard = build_roll_text(code)
     await update.message.reply_text(
@@ -241,6 +292,9 @@ async def random_airport(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_subscription(update, context):
+        return
+
     ranked = sorted(
         AIRPORTS.items(), key=lambda kv: kv[1]["chance"], reverse=True
     )[:10]
@@ -262,7 +316,24 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     data = query.data or ""
+
+    # Кнопка «Я подписался»
+    if data == "check_sub":
+        user_id = query.from_user.id
+        if await is_subscribed(context, user_id):
+            await query.edit_message_text(
+                "✅ Спасибо за подписку! Теперь можешь крутить рулетку.\n"
+                "Отправь /roll SVO или нажми /random."
+            )
+        else:
+            await query.answer("❌ Ты ещё не подписался. Попробуй ещё раз.", show_alert=True)
+        return
+
+    # Кнопки переброса
     if not data.startswith("reroll:"):
+        return
+
+    if not await require_subscription(update, context):
         return
 
     code = data.split(":", 1)[1]
