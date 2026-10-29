@@ -13,7 +13,7 @@ from telegram.ext import (
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8880712933:AAHMWKpLPPmUH6Kekfvn3s4DZa6J0GoHTWM")
 
 # ==== НАСТРОЙКИ ПОДПИСКИ ====
-CHANNEL_USERNAME = "@ЧилАвиа"          # замени на username канала, с @
+CHANNEL_USERNAME = "@chillaviaa"          # замени на username канала, с @
 CHANNEL_URL = "https://t.me/chillaviaa"   # замени на ссылку на канал
 
 # ==== БАЗА АЭРОПОРТОВ ====
