@@ -19,11 +19,11 @@ from telegram.ext import (
 )
 
 # ==== НАСТРОЙКИ ====
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "ВСТАВЬ_СЮДА_ТОКЕН_ОТ_@BotFather")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8880712933:AAHMWKpLPPmUH6Kekfvn3s4DZa6J0GoHTWM")
 
 # ==== НАСТРОЙКИ ПОДПИСКИ ====
-CHANNEL_USERNAME = "@твой_канал"          # замени на username канала, с @
-CHANNEL_URL = "https://t.me/твой_канал"   # замени на ссылку на канал
+CHANNEL_USERNAME = "@chillaviaa"          # замени на username канала, с @
+CHANNEL_URL = "https://t.me/chillaviaa"   # замени на ссылку на канал
 
 # ==== БАЗА АЭРОПОРТОВ ====
 AIRPORTS = {
